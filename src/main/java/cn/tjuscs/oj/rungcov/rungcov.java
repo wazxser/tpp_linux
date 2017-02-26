@@ -14,20 +14,16 @@ import java.util.Scanner;
 
 import cn.tjuscs.oj.cmdHelper.Compile;
 import com.ncfxy.FaultLocalization.FaultLocalization;
-import cn.tjuscs.oj.config.config;
+import cn.tjuscs.oj.config.Config;
 //import cn.tjuscs.oj.cmdHelper.ExecuteLinuxCommand;
 import cn.tjuscs.oj.cmdHelper.ExecuteLinuxCommand;
 import cn.tjuscs.oj.cmdHelper.JavaOperateFiles;
 
 public class rungcov {
 
-	public static void main(String[] args) throws NumberFormatException,
-			IOException, SQLException {
+	public static List<Integer> mainProcess(String pid, String sid) throws NumberFormatException, IOException, SQLException {
 		rungcov r = new rungcov();
-		ResultSet res = config.getAllSubmitIdFromProblemId("2800");
-		res.next();
-		String sid = res.getString("sid");
-		r.runAndGetMat(sid, "2800");
+		return r.runAndGetMat(sid, pid);
 	}
 
 	/**
@@ -41,21 +37,21 @@ public class rungcov {
 	 * @throws IOException
 	 * @since TOJ_Plus_Plus　Ver 1.0-SNAPSHOT
 	 */
-	public void runAndGetMat(String sid, String pid)
+	public List<Integer> runAndGetMat(String sid, String pid)
 			throws NumberFormatException, IOException, SQLException {
-
+		List<Integer> retVal = new ArrayList<Integer>();
 //		String workpath = new File("./").getCanonicalPath();
-		String workpath = config.getProjectPath();
+		String workpath = Config.getProjectPath();
 		System.out.println(workpath);
 //		String dataPath = "./data/toj_problem_" + pid;
 //		dataPath = new File(dataPath).getCanonicalPath();
-		String dataPath = config.getProblemBasePath(pid);
+		String dataPath = Config.getProblemBasePath(pid);
 		String casenumFileName = dataPath + "/splitedTestCases/" + pid
 				+ "_total.txt";
 		String inputFileName = dataPath + "/splitedTestCases/" + pid + "_";
 		String outputFileName = dataPath + "/splitedTestCases/output";
 //		String srcFileDir = dataPath + "/programs/commit_id_" + sid + "/";
-		String srcFileDir = config.getTestProblemPath(pid, sid);
+		String srcFileDir = Config.getTestProblemPath(pid, sid);
 		String srcFileName = dataPath + "/programs/commit_id_" + sid + "/"
 				+ sid;
 		String compileHelperPath = "sh " + workpath + "/" + "compile_helper.sh ";
@@ -63,11 +59,11 @@ public class rungcov {
 		FileReader cnst = new FileReader(casenumFileName);
 		BufferedReader fin = new BufferedReader(cnst);
 		int casenum = Integer.valueOf(fin.readLine()).intValue();
+		retVal.add(casenum);
 		fin.close();
 
-		// 编译文件，使用-ftest-coverage -fprofile-arcs参数
-		Compile.compile(dataPath + "/programs/commit_id_" + sid + "/" + sid + ".src", dataPath + "/programs/commit_id_" + sid, true, "-ftest-coverage -fprofile-arcs");
-		ExecuteLinuxCommand.execute("mv " + dataPath + "/programs/commit_id_" + sid + "/" + sid + " " + dataPath + "/programs/commit_id_" + sid + "/" + sid + ".exe");
+		// 编译文件
+		Compile.compile(dataPath + "/programs/commit_id_" + sid + "/" + sid + ".src", dataPath + "/programs/commit_id_" + sid);
 		ExecuteLinuxCommand.execute("mv " + dataPath + "/programs/commit_id_" + sid + "/" + sid + "_src.cpp " + dataPath + "/programs/commit_id_" + sid + "/" + sid + ".cpp");
 		ExecuteLinuxCommand.execute(compileHelperPath
 				+ (dataPath + "/programs/commit_id_" + sid) + " " + sid
@@ -88,7 +84,8 @@ public class rungcov {
 		}
 		List<Integer> testResult = compareAndCombine((dataPath
 				+ "/splitedTestCases/" + pid), (outputFileName), casenum);
-		getMatrixFromGcov(srcFileDir, sid, casenum, testResult);
+		retVal.add(getMatrixFromGcov(srcFileDir, sid, casenum, testResult));
+		return retVal;
 	}
 
 	/**
@@ -101,9 +98,10 @@ public class rungcov {
 	 * @throws IOException
 	 * @since TOJ_Plus_Plus　Ver 1.0-SNAPSHOT
 	 */
-	private void getMatrixFromGcov(String sourceDir, String programName,
+	private Integer getMatrixFromGcov(String sourceDir, String programName,
 			int caseNum, List<Integer> testResult) throws IOException {
 		// programName 使用sid
+		Integer passedCasesNum = 0;
 		String outputFileName = sourceDir + "coverage_matrix.txt";
 		StringBuffer outputBuffer = new StringBuffer();
 		outputBuffer.append("#Ver_# " + programName + '\n');
@@ -121,6 +119,7 @@ public class rungcov {
 		for (int i = 0; i < caseNum; i++) {
 			outputBuffer.append("#CASE#" + getString(i) + "#R"
 					+ testResult.get(i) + "# ");
+			passedCasesNum += 1- testResult.get(i);
 			String fileName = sourceDir + programName + "_" + i + ".cpp.gcov";
 			try (Scanner cin = new Scanner(new File(fileName));) {
 				while (cin.hasNext()) {
@@ -150,6 +149,7 @@ public class rungcov {
 		List<Integer> sus = localization.getSuspiciousList();
 		System.out.println("代码行的可疑值排序为:");
 		System.out.println(sus.toString());
+		return passedCasesNum;
 	}
 
 	/**
